@@ -6,7 +6,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"slices"
+	"golang.org/x/exp/slices"
 	"strings"
 	"time"
 )
