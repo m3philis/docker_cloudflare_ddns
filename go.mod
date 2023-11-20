@@ -1,4 +1,4 @@
-module x/exp
+module cf-ddns
 
 go 1.21.4
 
