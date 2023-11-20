@@ -6,9 +6,10 @@ import (
 	"net"
 	"os"
 	"os/exec"
-	"golang.org/x/exp/slices"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/slices"
 )
 
 type DNS struct {
@@ -84,6 +85,7 @@ func main() {
 		currentDNS := getCurrentDNS(cfZone)
 
 		ipCheck := net.ParseIP(publicIP)
+		var changedIP bool = false
 		if ipCheck.To4() != nil {
 			log.Println("Public IP is from type IPv4. Only updating A Records!")
 			for _, subdomain := range currentDNS {
@@ -92,6 +94,9 @@ func main() {
 						if publicIP != subdomain.Content {
 							log.Printf("IP for %s is different to public IP! Updating CloudFlare DNS!\n", subdomain.Name)
 							updateDNS(publicIP, subdomain.ID, cfZone)
+							changedIP = true
+						} else {
+							log.Printf("IP for %s already correct!\n", subdomain.Name)
 						}
 					}
 				}
@@ -103,16 +108,21 @@ func main() {
 					if slices.Contains(cfSubdomains, subdomain.Name) {
 						if publicIP != subdomain.Content {
 							log.Printf("IP for %s is different to public IP! Updating CloudFlare DNS!\n", subdomain.Name)
+							changedIP = true
 							updateDNS(publicIP, subdomain.ID, cfZone)
+						} else {
+							log.Printf("IP for %s already correct!\n", subdomain.Name)
 						}
 					}
 				}
 			}
 		}
 
-		log.Println("Waiting a minute before checking DNS to let it propagate...")
-		time.Sleep(1 * time.Minute)
-		checkDNS(publicIP, cfSubdomains)
+		if changedIP {
+			log.Println("Waiting a minute before checking DNS to let it propagate...")
+			time.Sleep(1 * time.Minute)
+			checkDNS(publicIP, cfSubdomains)
+		}
 
 		log.Println("Sleeping 5min...zzZ")
 		time.Sleep(5 * time.Minute)
