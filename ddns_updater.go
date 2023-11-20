@@ -30,7 +30,7 @@ func getCurrentDNS(zone string) []DNS {
 
 	var dnsData []DNS
 
-	response, err := exec.Command("/usr/bin/flarectl", "--json", "dns", "list", "--zone", os.Getenv("CF_ZONE")).Output()
+	response, err := exec.Command("/usr/bin/flarectl", "--json", "dns", "list", "--zone", zone).Output()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -40,10 +40,11 @@ func getCurrentDNS(zone string) []DNS {
 	return dnsData
 }
 
-func updateDNS(newIP string, IDs []string, zone string) {
+func updateDNS(newIP string, ID string, zone string) {
 
-	for _, id := range IDs {
-		exec.Command("/usr/bin/flarectl", "dns", "update", "--zone", zone, "--id", id, "--content", newIP)
+	err := exec.Command("/usr/bin/flarectl", "dns", "update", "--zone", zone, "--id", ID, "--content", newIP).Run()
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 
@@ -81,23 +82,18 @@ func main() {
 		log.Println("Getting current DNS info from CloudFlare...")
 		currentDNS := getCurrentDNS(cfZone)
 
-		if publicIP != currentDNS[0].Content {
-			log.Println("Public IP is different to CloudFlare DNS! Updating!")
-			var subdomainIDs []string
-
-			for _, subdomain := range currentDNS {
-				if subdomain.Type == "A" {
-					if slices.Contains(cfSubdomains, subdomain.Name) {
-						subdomainIDs = append(subdomainIDs, subdomain.ID)
+		for _, subdomain := range currentDNS {
+			if subdomain.Type == "A" {
+				if slices.Contains(cfSubdomains, subdomain.Name) {
+					if publicIP != subdomain.Content {
+						log.Printf("IP for %s is different to public IP! Updating CloudFlare DNS!\n", subdomain.Name)
+						updateDNS(publicIP, subdomain.ID, cfZone)
 					}
 				}
 			}
-
-			updateDNS(publicIP, subdomainIDs, cfZone)
-			checkDNS(publicIP, cfSubdomains)
-		} else {
-			log.Println("DNS is up2date. Doing nothing!")
 		}
+
+		checkDNS(publicIP, cfSubdomains)
 
 		log.Println("Sleeping 5min...zzZ")
 		time.Sleep(5 * time.Minute)
