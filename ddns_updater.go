@@ -110,6 +110,8 @@ func main() {
 			}
 		}
 
+		log.Println("Waiting a minute before checking DNS to let it propagate...")
+		time.Sleep(1 * time.Minute)
 		checkDNS(publicIP, cfSubdomains)
 
 		log.Println("Sleeping 5min...zzZ")
