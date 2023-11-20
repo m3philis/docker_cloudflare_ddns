@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"slices"
@@ -82,12 +83,28 @@ func main() {
 		log.Println("Getting current DNS info from CloudFlare...")
 		currentDNS := getCurrentDNS(cfZone)
 
-		for _, subdomain := range currentDNS {
-			if subdomain.Type == "A" {
-				if slices.Contains(cfSubdomains, subdomain.Name) {
-					if publicIP != subdomain.Content {
-						log.Printf("IP for %s is different to public IP! Updating CloudFlare DNS!\n", subdomain.Name)
-						updateDNS(publicIP, subdomain.ID, cfZone)
+		ipCheck := net.ParseIP(publicIP)
+		if ipCheck.To4() != nil {
+			log.Println("Public IP is from type IPv4. Only updating A Records!")
+			for _, subdomain := range currentDNS {
+				if subdomain.Type == "A" {
+					if slices.Contains(cfSubdomains, subdomain.Name) {
+						if publicIP != subdomain.Content {
+							log.Printf("IP for %s is different to public IP! Updating CloudFlare DNS!\n", subdomain.Name)
+							updateDNS(publicIP, subdomain.ID, cfZone)
+						}
+					}
+				}
+			}
+		} else {
+			log.Println("Public IP is from type IPv6. Only updating AAAA Records!")
+			for _, subdomain := range currentDNS {
+				if subdomain.Type == "AAAA" {
+					if slices.Contains(cfSubdomains, subdomain.Name) {
+						if publicIP != subdomain.Content {
+							log.Printf("IP for %s is different to public IP! Updating CloudFlare DNS!\n", subdomain.Name)
+							updateDNS(publicIP, subdomain.ID, cfZone)
+						}
 					}
 				}
 			}
