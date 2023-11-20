@@ -96,7 +96,7 @@ func main() {
 							updateDNS(publicIP, subdomain.ID, cfZone)
 							changedIP = true
 						} else {
-							log.Printf("IP for %s already correct!\n", subdomain.Name)
+							log.Printf("IP for %s is already correct!\n", subdomain.Name)
 						}
 					}
 				}
@@ -111,7 +111,7 @@ func main() {
 							changedIP = true
 							updateDNS(publicIP, subdomain.ID, cfZone)
 						} else {
-							log.Printf("IP for %s already correct!\n", subdomain.Name)
+							log.Printf("IP for %s is already correct!\n", subdomain.Name)
 						}
 					}
 				}
