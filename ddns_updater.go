@@ -23,11 +23,11 @@ type DNS struct {
 type Zone struct {
 	Name       string   `yaml:"cf_zone"`
 	SubDomains []string `yaml:"cf_subdomains"`
+	ApiToken   string   `yaml:"cf_api_token"`
 }
 
 type Domains struct {
-	Zones    []Zone `yaml:"cf_domains"`
-	ApiToken string `yaml:"cf_api_token"`
+	Zones []Zone `yaml:"cf_domains"`
 }
 
 func getPublicIP() string {
@@ -97,8 +97,6 @@ func main() {
 			log.Fatal(err)
 		}
 
-		os.Setenv("CF_API_TOKEN", zones.ApiToken)
-
 		log.Println("Getting public IP...")
 		publicIP := getPublicIP()
 		log.Printf("Public IP is %s\n", publicIP)
@@ -106,6 +104,7 @@ func main() {
 		for _, zone := range zones.Zones {
 
 			log.Printf("Getting current DNS info from CloudFlare for zone %s...\n", zone.Name)
+			os.Setenv("CF_API_TOKEN", zone.ApiToken)
 			currentDNS := getCurrentDNS(zone.Name)
 
 			ipCheck := net.ParseIP(publicIP)
