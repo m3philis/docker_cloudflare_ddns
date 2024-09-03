@@ -10,9 +10,9 @@ Prerequisites:
 * The syntax of the YAML file will be
 ```
 ---
-cf_api_token: $token
 cf_domains:
 - cf_zone: $zone_name
+  cf_api_token: $token
   cf_subdomains:
   - sub1
   - sub2
