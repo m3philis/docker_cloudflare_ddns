@@ -22,6 +22,15 @@ cf_domains:
 
 Command to run the container would be `docker run cf-ddns:latest -v /path/to/domains.yaml:/domains.yaml:ro`
 
+Or better with docker compose:
+```
+  cf-updater:
+    build: build/docker_cloudflare_ddns
+    restart: unless-stopped
+    volumes:
+    - ./configs/cf_ddns/domains.yaml:/domains.yaml:ro
+```
+
 The container checks the public IP of the network it runs it against ifconfig.io. Then it checks the defined IPs in CloudFlare for the specified subdomains and if they differ from the public IP they will get updated. Afterwards the container checks if a DNS query will respond with the new IPs.
 
 ## If you run golang >= 1.21
