@@ -26,7 +26,7 @@ type Zone struct {
 }
 
 type Domains struct {
-  Zones    []Zone `yaml:"cf_domains"`
+	Zones    []Zone `yaml:"cf_domains"`
 	ApiToken string `yaml:"cf_api_token"`
 }
 
@@ -113,14 +113,17 @@ func main() {
 			if ipCheck.To4() != nil {
 				log.Println("Public IP is from type IPv4. Only updating A Records!")
 				for _, subdomain := range currentDNS {
+					if len(subdomain.Name) > len(zone.Name) {
+						subdomain.Name = subdomain.Name[:len(subdomain.Name)-len(zone.Name)-1]
+					}
 					if subdomain.Type == "A" {
 						if slices.Contains(zone.SubDomains, subdomain.Name) {
 							if publicIP != subdomain.Content {
-								log.Printf("IP for %s is different to public IP! Updating CloudFlare DNS!\n", subdomain.Name)
+								log.Printf("IP for %s.%s is different to public IP! Updating CloudFlare DNS!\n", subdomain.Name, zone.Name)
 								updateDNS(publicIP, subdomain.ID, zone.Name)
 								changedIP = true
 							} else {
-								log.Printf("IP for %s is already correct!\n", subdomain.Name)
+								log.Printf("IP for %s.%s is already correct!\n", subdomain.Name, zone.Name)
 							}
 						}
 					}
