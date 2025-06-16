@@ -58,7 +58,7 @@ func checkDNS(newIP string, subdomains []string, domain string) {
 	var verified bool = true
 
 	for _, subdomain := range subdomains {
-		dnsResponse, err := exec.Command("/usr/bin/dig", subdomain, "+short", "@1.1.1.1").Output()
+		dnsResponse, err := exec.Command("/usr/bin/dig", subdomain, ".", domain, "+short", "@1.1.1.1").Output()
 		if err != nil {
 			log.Fatal(err)
 		}
