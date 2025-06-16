@@ -61,6 +61,14 @@ func updateDNS(newIP string, ID string, zone string) {
 	}
 }
 
+func createDNS(newIP string, name string, zone string, dnsType string) {
+
+	err := exec.Command("/usr/bin/flarectl", "dns", "create", "--zone", zone, "--name", name, "--content", newIP, "--type", dnsType).Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func checkDNS(newIP string, subdomains []string) {
 
 	var verified bool = true
@@ -103,12 +111,21 @@ func main() {
 
 		for _, zone := range zones.Zones {
 
+			subdomains := make(map[string]struct{})
+
+			for _, subdomain := range zone.SubDomains {
+					subdomains[subdomain] = struct{}{}
+			}
+
 			log.Printf("Getting current DNS info from CloudFlare for zone %s...\n", zone.Name)
 			os.Setenv("CF_API_TOKEN", zone.ApiToken)
 			currentDNS := getCurrentDNS(zone.Name)
 
 			ipCheck := net.ParseIP(publicIP)
+
 			var changedIP bool = false
+			var dnsType string = "A"
+
 			if ipCheck.To4() != nil {
 				log.Println("Public IP is from type IPv4. Only updating A Records!")
 				for _, subdomain := range currentDNS {
@@ -117,6 +134,7 @@ func main() {
 					}
 					if subdomain.Type == "A" {
 						if slices.Contains(zone.SubDomains, subdomain.Name) {
+							delete(subdomains, subdomain.Name)
 							if publicIP != subdomain.Content {
 								log.Printf("IP for %s.%s is different to public IP! Updating CloudFlare DNS!\n", subdomain.Name, zone.Name)
 								updateDNS(publicIP, subdomain.ID, zone.Name)
@@ -128,20 +146,28 @@ func main() {
 					}
 				}
 			} else {
+				dnsType = "AAAA"
 				log.Println("Public IP is from type IPv6. Only updating AAAA Records!")
 				for _, subdomain := range currentDNS {
 					if subdomain.Type == "AAAA" {
 						if slices.Contains(zone.SubDomains, subdomain.Name) {
+							delete(subdomains, subdomain.Name)
 							if publicIP != subdomain.Content {
 								log.Printf("IP for %s is different to public IP! Updating CloudFlare DNS!\n", subdomain.Name)
-								changedIP = true
 								updateDNS(publicIP, subdomain.ID, zone.Name)
+								changedIP = true
 							} else {
 								log.Printf("IP for %s is already correct!\n", subdomain.Name)
 							}
 						}
 					}
 				}
+			}
+
+
+
+			for subdomain := range subdomains {
+				createDNS(publicIP, zone.Name, subdomain, dnsType)
 			}
 
 			if changedIP {
