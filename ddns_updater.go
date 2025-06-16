@@ -53,23 +53,7 @@ func getCurrentDNS(zone string) []DNS {
 	return dnsData
 }
 
-func updateDNS(newIP string, ID string, zone string) {
-
-	err := exec.Command("/usr/bin/flarectl", "dns", "update", "--zone", zone, "--id", ID, "--content", newIP).Run()
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func createDNS(newIP string, name string, zone string, dnsType string) {
-
-	err := exec.Command("/usr/bin/flarectl", "dns", "create", "--zone", zone, "--name", name, "--content", newIP, "--type", dnsType).Run()
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func checkDNS(newIP string, subdomains []string) {
+func checkDNS(newIP string, subdomains []string, domain string) {
 
 	var verified bool = true
 
@@ -81,13 +65,37 @@ func checkDNS(newIP string, subdomains []string) {
 
 		dnsIP := strings.TrimSuffix(string(dnsResponse), "\n")
 		if dnsIP != newIP {
-			log.Printf("DNS for %s was not updated correctly!", subdomain)
+			log.Printf("DNS for %s.%s was not updated correctly!", subdomain, domain)
 			verified = false
 		}
 
 	}
 	if verified {
 		log.Println("All subdomains verified to return the new IP!")
+	}
+}
+
+func createDNS(zone string, name string, newIP string, dnsType string) {
+
+	//log.Printf("/usr/bin/flarectl dns create --zone %v --name %v --content %v --type %v\n", zone, name, newIP, dnsType)
+	err := exec.Command("/usr/bin/flarectl", "dns", "create", "--zone", zone, "--name", name, "--content", newIP, "--type", dnsType).Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func deleteDNS(zone string, ID string) {
+	err := exec.Command("/usr/bin/flarectl", "dns", "delete", "--zone", zone, "--id", ID).Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func updateDNS(zone string, ID string, newIP string) {
+
+	err := exec.Command("/usr/bin/flarectl", "dns", "update", "--zone", zone, "--id", ID, "--content", newIP).Run()
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 
@@ -128,19 +136,24 @@ func main() {
 
 			if ipCheck.To4() != nil {
 				log.Println("Public IP is from type IPv4. Only updating A Records!")
-				for _, subdomain := range currentDNS {
-					if len(subdomain.Name) > len(zone.Name) {
-						subdomain.Name = subdomain.Name[:len(subdomain.Name)-len(zone.Name)-1]
+				for _, dnsDomain := range currentDNS {
+					if len(dnsDomain.Name) > len(zone.Name) {
+						dnsDomain.Name = dnsDomain.Name[:len(dnsDomain.Name)-len(zone.Name)-1]
 					}
-					if subdomain.Type == "A" {
-						if slices.Contains(zone.SubDomains, subdomain.Name) {
-							delete(subdomains, subdomain.Name)
-							if publicIP != subdomain.Content {
-								log.Printf("IP for %s.%s is different to public IP! Updating CloudFlare DNS!\n", subdomain.Name, zone.Name)
-								updateDNS(publicIP, subdomain.ID, zone.Name)
+					if dnsDomain.Type == "A" {
+						if slices.Contains(zone.SubDomains, dnsDomain.Name) {
+							delete(subdomains, dnsDomain.Name)
+							if publicIP != dnsDomain.Content {
+								log.Printf("IP for %s.%s is different to public IP! Updating CloudFlare DNS!\n", dnsDomain.Name, zone.Name)
+								updateDNS(zone.Name, dnsDomain.ID, publicIP)
 								changedIP = true
 							} else {
-								log.Printf("IP for %s.%s is already correct!\n", subdomain.Name, zone.Name)
+								log.Printf("IP for %s.%s is already correct!\n", dnsDomain.Name, zone.Name)
+							}
+						} else {
+							if dnsDomain.Type == "A" && dnsDomain.Name != zone.Name {
+								log.Printf("DNS for %s.%s not needed anymore. Deleting entry!\n", dnsDomain.Name, zone.Name)
+								deleteDNS(zone.Name, dnsDomain.ID)
 							}
 						}
 					}
@@ -148,32 +161,37 @@ func main() {
 			} else {
 				dnsType = "AAAA"
 				log.Println("Public IP is from type IPv6. Only updating AAAA Records!")
-				for _, subdomain := range currentDNS {
-					if subdomain.Type == "AAAA" {
-						if slices.Contains(zone.SubDomains, subdomain.Name) {
-							delete(subdomains, subdomain.Name)
-							if publicIP != subdomain.Content {
-								log.Printf("IP for %s is different to public IP! Updating CloudFlare DNS!\n", subdomain.Name)
-								updateDNS(publicIP, subdomain.ID, zone.Name)
+				for _, dnsDomain := range currentDNS {
+					if dnsDomain.Type == "AAAA" {
+						if slices.Contains(zone.SubDomains, dnsDomain.Name) {
+							delete(subdomains, dnsDomain.Name)
+							if publicIP != dnsDomain.Content {
+								log.Printf("IP for %s.%s is different to public IP! Updating CloudFlare DNS!\n", dnsDomain.Name, zone.Name)
+								updateDNS(publicIP, dnsDomain.ID, zone.Name)
 								changedIP = true
 							} else {
-								log.Printf("IP for %s is already correct!\n", subdomain.Name)
+								log.Printf("IP for %s.%s is already correct!\n", dnsDomain.Name, zone.Name)
+							}
+						} else {
+							if dnsDomain.Type == "AAAA" && dnsDomain.Name != zone.Name {
+								log.Printf("DNS for %s.%s not needed anymore. Deleting entry!\n", dnsDomain.Name, zone.Name)
+								deleteDNS(zone.Name, dnsDomain.ID)
 							}
 						}
 					}
 				}
 			}
 
-
-
 			for subdomain := range subdomains {
-				createDNS(publicIP, zone.Name, subdomain, dnsType)
+				log.Printf("%s.%s not found at CloudFlare, creating entry!\n", subdomain, zone.Name)
+				createDNS(zone.Name, subdomain, publicIP, dnsType)
+				changedIP = true
 			}
 
 			if changedIP {
 				log.Println("Waiting a minute before checking DNS to let it propagate...")
 				time.Sleep(1 * time.Minute)
-				checkDNS(publicIP, zone.SubDomains)
+				checkDNS(publicIP, zone.SubDomains, zone.Name)
 			}
 		}
 
